@@ -1,0 +1,24 @@
+// C style comments
+
+/*
+
+The extension name hasn't been defined since the name hasn't as well.
+
+The compiler should be able to count uses of 'TODO' or 'STUB' in the codebase. (I tend to forget those whenever i write them)
+
+*/
+
+// TODO: Decide on the syntax for importing modules
+import "Standard.{InOut, Math}";
+using "Standard";
+
+let a = 2;
+let b: s32 = 3;
+
+a + b;
+
+InOut.print(Math.pow(b)); InOut.print("\n");
+
+InOut.print("%{s32}\n", Math.pow(b));
+
+exit 0; // Exits the program directly.

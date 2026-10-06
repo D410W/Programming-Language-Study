@@ -1,0 +1,18 @@
+let a = 2;
+let b: s32 = 3;
+
+// 'closures' are the same as 'functions'
+let test_closure_1: function = () s32 {
+  return -1;
+};
+
+clos test_closure_2 () s32 {
+  return -1;
+};
+
+// 'meta' functions don't pass arguments with parentheses and are executed at compile time.
+//
+// Imports should be defined by the language's own metaprogramming features
+meta import (module_path: string) string {
+  return "all of the code";
+};
