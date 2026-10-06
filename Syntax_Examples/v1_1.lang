@@ -12,7 +12,7 @@ The compiler should be able to count uses of 'TODO' or 'STUB' in the codebase. (
 import "Standard.{InOut, Math}";
 using "Standard";
 
-let a = 2;
+let a = 2; // Inferred type
 let b: s32 = 3;
 
 a + b;
