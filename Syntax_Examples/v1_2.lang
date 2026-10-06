@@ -6,7 +6,7 @@ let test_closure_1: function = () s32 {
   return -1;
 };
 
-clos test_closure_2 () s32 {
+fn test_closure_2 () s32 {
   return -1;
 };
 
