@@ -38,10 +38,10 @@ SourceFile read_source(FILE* source) {
   while (fgets(buffer, 255, source) != NULL) {
 
     // allocating new line
-    size_t n_chars = (strlen(buffer) + 1);
+    size_t n_chars = strlen(buffer) - 1; // removing '\n';
     Line new_line = {
-      .contents = malloc( n_chars * sizeof(char) ), // Minimum length in bytes for current line: Char count + '\0'.
-      .size = n_chars - 1,
+      .contents = malloc( (n_chars + 1) * sizeof(char) ), // Minimum length in bytes for current line: Char count + '\0'.
+      .size = n_chars,
     };
     strncpy(new_line.contents, buffer, n_chars);
 

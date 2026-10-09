@@ -16,9 +16,14 @@ int main(int argc, char** argv) {
   SourceFile sf = read_source(source_file);
   fclose(source_file);
 
-  printf("%s\n", sf.lines[sf.size - 1].contents);
-
+  TokenList tl = lexical_analysis(sf);
   free_source(sf);
+  
+  for (size_t i = 0; i < tl.size; ++i) {
+    printf("%i %s\n", tl.tokens[i].kind, tl.tokens[i].value);
+  }
+  
+  free_token_list(tl);
   
   return 0;
 }

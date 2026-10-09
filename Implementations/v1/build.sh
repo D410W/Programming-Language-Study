@@ -1,3 +1,5 @@
-#!/bin/sh
+#!/bin/bash
 
-gcc main.c -o compiler
+mkdir -p build
+
+gcc src/main.c -o build/compiler --std=c23
