@@ -16,7 +16,7 @@ int main(int argc, char** argv) {
   SourceFile sf = read_source(source_file);
   fclose(source_file);
 
-  TokenList tl = lexical_analysis(sf);
+  TokenList tl = lexical_analysis(sf, true);
   free_source(sf);
   
   for (size_t i = 0; i < tl.size; ++i) {

@@ -21,9 +21,11 @@ typedef enum {
   TokenKind_DECLARATION,
   TokenKind_GRAMMAR,
   TokenKind_SNC_DELIMETER,
+  TokenKind_SNC_TEXT,
   TokenKind_OPERATOR,
   TokenKind_NUMBER,
   TokenKind_COMMENT,
+  TokenKind_COMMENT_TEXT,
   TokenKind_IDENTIFIER,
 } TokenKind;
 
@@ -41,9 +43,10 @@ typedef struct {
  * Reads through a 'SourceFile' and creates corresponding tokens in the language's syntax.
  * 
  * Arg1: 'SourceFile' struct which will be read.
+ * Arg2: Whether to print debugging info to stdout.
  * Return: A list of tokens.
  */
-TokenList lexical_analysis(SourceFile sf);
+TokenList lexical_analysis(SourceFile sf, bool verbose);
 
 /**
  * Cleans up memory allocated for a 'TokenList' struct.
@@ -101,7 +104,7 @@ Token new_token_declaration(char* start, size_t* token_length) {
   if (token_length != NULL) *token_length = length;
   return new_t;
 }
-char* grammar_tokens[] = { ";", ":", "{", "}", "(", ")" };
+char* grammar_tokens[] = { ";", ":", ".", ",", "{", "}", "(", ")" };
 Token new_token_grammar(char* start, size_t* token_length) {
   size_t length = 1;
   
@@ -129,6 +132,17 @@ Token new_token_snc_delimeter(char* start, size_t* token_length) {
   new_t.value[1] = '\0';
   
   if (token_length != NULL) *token_length = length;
+  return new_t;
+}
+Token new_token_snc_text(char* start, size_t token_length) {
+  Token new_t = {
+    .kind = TokenKind_SNC_TEXT,
+    .value = malloc((token_length+1) * sizeof(char))
+  };
+  
+  strncpy(new_t.value, start, token_length);
+  new_t.value[token_length] = '\0';
+  
   return new_t;
 }
 char* operator_tokens[] = { "-", "+", "*", "/", "==", "!=" };
@@ -163,6 +177,17 @@ Token new_token_comment(char* start, size_t* token_length) {
   new_t.value[length] = '\0';
   
   if (token_length != NULL) *token_length = length;
+  return new_t;
+}
+Token new_token_comment_text(char* start, size_t token_length) {
+  Token new_t = {
+    .kind = TokenKind_COMMENT_TEXT,
+    .value = malloc((token_length+1) * sizeof(char))
+  };
+  
+  strncpy(new_t.value, start, token_length);
+  new_t.value[token_length] = '\0';
+  
   return new_t;
 }
 Token new_token_number(char* start, size_t token_length) {
@@ -243,44 +268,51 @@ int match_specific_string(char** words, int word_count, char* start) {
 
 int is_token_control_flow(char* start) {
   char** words = control_flow_tokens;
+  size_t words_length = arrlen(control_flow_tokens);
   
-  int match_result = match_specific_string(words, 2, start);
+  int match_result = match_specific_string(words, words_length, start);
   return match_result;
 }
 int is_token_declaration(char* start) {
   char** words = declaration_tokens;
+  size_t words_length = arrlen(declaration_tokens);
   
-  int match_result = match_specific_string(words, 2, start);
+  int match_result = match_specific_string(words, words_length, start);
   return match_result;
 }
 int is_token_grammar(char* start) {
   char** words = grammar_tokens;
+  size_t words_length = arrlen(grammar_tokens);
   
-  int match_result = match_specific_string(words, 6, start);
+  int match_result = match_specific_string(words, words_length, start);
   return match_result;
 }
 int is_token_snc_delimeter(char* start) {
   char** words = snc_delimeter_tokens;
+  size_t words_length = arrlen(snc_delimeter_tokens);
   
-  int match_result = match_specific_string(words, 2, start);
+  int match_result = match_specific_string(words, words_length, start);
   return match_result;
 }
 int is_token_operator(char* start) {
   char** words = operator_tokens;
+  size_t words_length = arrlen(operator_tokens);
   
-  int match_result = match_specific_string(words, 6, start);
+  int match_result = match_specific_string(words, words_length, start);
   return match_result;
 }
 int is_token_comment(char* start) {
   char** words = comment_tokens;
+  size_t words_length = arrlen(comment_tokens);
   
-  int match_result = match_specific_string(words, 3, start);
+  int match_result = match_specific_string(words, words_length, start);
   return match_result;
 }
 int is_ignore_character(char* start) {
   char* words[] = {" ", "\r"};
+  size_t words_length = arrlen(words);
   
-  int match_result = match_specific_string(words, 2, start);
+  int match_result = match_specific_string(words, words_length, start);
   return match_result;
 }
 
@@ -290,42 +322,110 @@ void append_token(TokenList* tl, Token token) {
   tl->tokens[tl->size - 1] = token;
 }
 
+void* fixed_length_token_checkers[] = {
+  &is_token_control_flow, &is_token_declaration, &is_token_grammar,
+  &is_token_operator,
+};
+void* fixed_length_constructors[] = {
+  &new_token_control_flow, &new_token_declaration, &new_token_grammar,
+  &new_token_operator,
+};
+
+void* var_length_token_checkers[] = {
+  &is_token_number, &is_token_identifier,
+};
+void* var_length_constructors[] = {
+  &new_token_number, &new_token_identifier,
+};
+
 typedef enum {
   LexerState_CODE = 0,
-  LexerState_STRING,
+  LexerState_STRING_SINGLE,
+  LexerState_STRING_DOUBLE,
   LexerState_COMMENT,
 } LexerState;
 
-TokenList lexical_analysis(SourceFile sf) {
+TokenList lexical_analysis(SourceFile sf, bool verbose) {
+  if (verbose) printf(" - Tokenizing source file\n");
   TokenList tl = {0};
+  LexerState state = LexerState_CODE;
+  
+  size_t text_token_start_line = 0;
+  size_t text_token_start = 0;
+  
+  for (size_t curr_line_idx = 0; curr_line_idx < sf.size; ++curr_line_idx) {
+    if (verbose) printf("line %zu\n", curr_line_idx + 1);
+    Line line = sf.lines[curr_line_idx];
+    size_t curr_char_idx = 0;
 
-  for (size_t line_idx = 0; line_idx < sf.size; ++line_idx) {
-    Line line = sf.lines[line_idx];
-    size_t curr_idx = 0;
-
-    while (curr_idx < line.size) {
-      void* fixed_length_token_checkers[] = {
-        &is_token_control_flow, &is_token_declaration, &is_token_grammar,
-        &is_token_snc_delimeter, &is_token_operator,
-      };
-      void* fixed_length_constructors[] = {
-        &new_token_control_flow, &new_token_declaration, &new_token_grammar,
-        &new_token_snc_delimeter, &new_token_operator,
-      };
+    while (curr_char_idx < line.size) {
+      if (verbose) printf("character %zu, state %hi\n", curr_char_idx + 1, state);
+      char* current_str = line.contents + curr_char_idx;
+      size_t chars_processed = (is_ignore_character(current_str) != -1);
       
-      void* var_length_token_checkers[] = {
-        &is_token_number, &is_token_identifier,
-      };
-      void* var_length_constructors[] = {
-        &new_token_number, &new_token_identifier,
-      };
+      // Lexer state changing
+      if (chars_processed == 0) {
+        if (state == LexerState_CODE) {
+          if (is_token_comment(current_str) == 0) { // token == //
+            size_t remaining_line_chars = line.size - curr_char_idx;
+            
+            Token new_t = new_token_comment_text(current_str, remaining_line_chars);
+            append_token(&tl, new_t);
+            
+            break;
+          } else if (is_token_comment(current_str) == 1) { // token == /*
+            text_token_start_line = curr_line_idx;
+            text_token_start = curr_char_idx;
+            state = LexerState_COMMENT;
+            chars_processed = 2;
+          } else if (is_token_snc_delimeter(current_str) == 0) { // token == "
+            text_token_start_line = curr_line_idx;
+            text_token_start = curr_char_idx;
+            state = LexerState_STRING_DOUBLE;
+            chars_processed = 1;
+          } else if (is_token_snc_delimeter(current_str) == 1) { // token == '
+            text_token_start_line = curr_line_idx;
+            text_token_start = curr_char_idx;
+            state = LexerState_STRING_SINGLE;
+            chars_processed = 1;
+          }
+        } else if (state == LexerState_STRING_DOUBLE) {
+          chars_processed = 1;
+          if (is_token_snc_delimeter(current_str) == 0) { // token == "
+            if (!(curr_char_idx > 0 && line.contents[curr_char_idx - 1] == '\\')) {
+              state = LexerState_CODE;
+              
+              size_t snc_length = curr_char_idx - text_token_start + 1;
+              
+              Token new_t = new_token_snc_text(line.contents + text_token_start, snc_length);
+              append_token(&tl, new_t);
+            }
+          }
+        } else if (state == LexerState_STRING_SINGLE) {
+          chars_processed = 1;
+          if (is_token_snc_delimeter(current_str) == 1) { // token == '
+            if (!(curr_char_idx > 0 && line.contents[curr_char_idx - 1] == '\\')) {
+              state = LexerState_CODE;
+              
+              size_t snc_length = curr_char_idx - text_token_start + 1;
+              
+              Token new_t = new_token_snc_text(line.contents + text_token_start, snc_length);
+              append_token(&tl, new_t);
+            }
+          }
+        } else if (state == LexerState_COMMENT) {
+          if (is_token_comment(current_str) == 2) { // token == '*/'
+            chars_processed = 2;
+            state = LexerState_CODE;
+          } else {
+            chars_processed = 1;
+          }
+        }
+      }
       
       int (*is_token)(char*);
       Token (*new_fix_token)(char*, size_t*);
       Token (*new_var_token)(char*, size_t);
-      
-      char* current_str = line.contents + curr_idx;
-      size_t chars_processed = (is_ignore_character(current_str) != -1);
       
       // Check fixed length tokens
       if (chars_processed == 0) {
@@ -357,18 +457,22 @@ TokenList lexical_analysis(SourceFile sf) {
       }
       
       // doesn't recognize token
-      if (chars_processed == 0) {
-        if (32 <= line.contents[curr_idx] && line.contents[curr_idx] <= 126) { // is visible
-          printf("Unrecognized token starting with char '%c', position %zu, %zu\n", line.contents[curr_idx], line_idx+1, curr_idx+1);
+      if (chars_processed == -1) {
+        if (32 <= line.contents[curr_char_idx] && line.contents[curr_char_idx] <= 126) { // is visible
+          printf("Unrecognized token starting with char '%c', position %zu, %zu\n", line.contents[curr_char_idx], curr_line_idx+1, curr_char_idx+1);
         } else {
-          printf("Unrecognized token starting with char value '%i', position %zu, %zu\n", line.contents[curr_idx], line_idx+1, curr_idx+1);
+          printf("Unrecognized token starting with char value '%i', position %zu, %zu\n", line.contents[curr_char_idx], curr_line_idx+1, curr_char_idx+1);
         }
         
         return tl;
       }
       
-      curr_idx += chars_processed;
+      curr_char_idx += chars_processed;
     }
+  }
+  
+  if (state != LexerState_CODE) {
+    printf("Unclosed text token starting at position %zu, %zu\n", text_token_start_line + 1, text_token_start + 1);
   }
   
   return tl;
