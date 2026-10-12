@@ -86,8 +86,8 @@ typedef struct {
 } Token;
 
 typedef struct {
-  size_t size;
   Token* tokens;
+  size_t size;
 } TokenList;
 
 /**
@@ -419,7 +419,7 @@ typedef enum {
 
 TokenList lexical_analysis(SourceFile sf, bool verbose) {
   if (verbose) printf(" - Tokenizing source file\n");
-  TokenList tl = {0};
+  TokenList tl = {};
   LexerState state = LexerState_CODE;
   
   size_t text_token_start_line = 0;
@@ -552,8 +552,13 @@ TokenList lexical_analysis(SourceFile sf, bool verbose) {
 
 void free_token_list(TokenList tl) {
   for (size_t idx = 0; idx < tl.size; ++idx) {
-    free(tl.tokens[idx].value);
+    char* token_value = tl.tokens[idx].value;
+    
+    if (token_value != NULL) {
+      free(token_value);
+    }
   }
+  
   free(tl.tokens);
 }
 

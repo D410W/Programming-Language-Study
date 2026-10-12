@@ -27,7 +27,14 @@ int main(int argc, char** argv) {
     printf("%s %s\n", buf, tl.tokens[i].value);
   }
   
+  SyntaxTree st = build_syn_tree(tl);
   free_token_list(tl);
+  
+  int test(void) {
+    return 2;
+  }
+  
+  free_syntax_tree(st);
   
   return 0;
 }
