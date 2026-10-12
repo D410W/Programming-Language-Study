@@ -6,6 +6,8 @@
 #include "source_file.h"
 #define LEXER_IMPLEMENTATION
 #include "lexer.h"
+#define PARSER_IMPLEMENTATION
+#include "parser.h"
 
 int main(int argc, char** argv) {
   if (argc < 2) return 1; // TODO error logging
@@ -16,11 +18,13 @@ int main(int argc, char** argv) {
   SourceFile sf = read_source(source_file);
   fclose(source_file);
 
-  TokenList tl = lexical_analysis(sf, true);
+  TokenList tl = lexical_analysis(sf, false);
   free_source(sf);
   
   for (size_t i = 0; i < tl.size; ++i) {
-    printf("%i %s\n", tl.tokens[i].kind, tl.tokens[i].value);
+    char buf[256];
+    tokenkind_to_str(buf, 256, tl.tokens[i].type);
+    printf("%s %s\n", buf, tl.tokens[i].value);
   }
   
   free_token_list(tl);
